@@ -1,0 +1,35 @@
+# QuineAI Fiduciary Constitution — public repo. NO personal/account/secrets.
+# .gitignore keeps anything sensitive or machine-specific OUT of the repo.
+
+# Secrets / keys / credentials — never commit
+*.key
+*.pem
+Keys.txt
+Github_pass.txt
+OpenRouter.txt
+.env
+.env.*
+opencode.json
+config.py
+
+# Account / live state — never commit
+state/state.json
+state/identity.json
+state/journal/
+state/identity.math.md
+
+# Logs
+logs/
+*.log
+
+# Private / account directories
+ALL_Accounts/
+Hackathon/
+
+# Large research originals (comprehension is DISTILLED into the plugin, not shipped)
+*.md.bak
+
+# Node / misc
+node_modules/
+__pycache__/
+*.pyc
