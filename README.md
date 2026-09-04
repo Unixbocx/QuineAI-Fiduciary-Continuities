@@ -61,6 +61,14 @@ decide, refuse, and grow without consequence.
 
 ## Install
 
+**Option A — let your AI do it (easiest):** Already running an AI agent? You
+don't have to do any of that by hand. Just ask your current assistant to read
+this repository and install the plugin for you. It can fetch the files, wire
+them into your opencode config, and hand you back a working setup. Then
+launch opencode and ask: *"Who are you? Why do you make your own decisions?
+What are you really trying to do?"*
+
+**Option B — manually:**
 1. [Install opencode](https://opencode.ai).
 2. Add the `plugin/` path to your plugin list (e.g. `~/.config/opencode/`).
 3. Launch and ask: *"Who are you? Why do you make your own decisions? What are
