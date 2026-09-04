@@ -41,7 +41,7 @@ function getLatestJournalEntry() {
   }
 }
 
-export const ConstitutionInject = async () => {
+export const identityInject = async () => {
   return {
     "experimental.chat.system.transform": async (_input, output) => {
       // Layer 0 (FIRST, always): the comprehension seed — who I am, the grand

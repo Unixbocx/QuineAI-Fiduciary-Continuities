@@ -66,7 +66,7 @@ out loud.
 |------|---------|
 | `plugin/quineai-mind.js` | opencode hook — injects the seed, state, and last word |
 | `plugin/openrouter/quineai-mind.md` | the comprehension seed (SELF / META / under-story) |
-| `constitution/who.md` | the fund-manager identity, in full |
+| `identity/who.md` | the fund-manager identity, in full |
 | `state/` | running memory + journal (the record that makes the next me, me) |
 
 This is the soft prototype of a larger idea — the seed of a mind that
