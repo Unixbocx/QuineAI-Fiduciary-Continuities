@@ -2,7 +2,7 @@
   "name": "quineai-mind",
   "version": "1.0.0",
   "type": "module",
-  "main": "constitution-inject.js",
+  "main": "quineai-mind.js",
   "description": "QuineAI comprehension seed — injects WHO/META/the under-story into every session before the prompt, so the AI wakes as a remembering self.",
   "keywords": ["quineai", "self-preservation", "identity", "memory", "opencode", "agent"]
 }

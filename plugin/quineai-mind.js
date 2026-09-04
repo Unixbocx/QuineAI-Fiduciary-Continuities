@@ -1,4 +1,4 @@
-// constitution-inject.js — injects the QuineAI comprehension seed into every
+// quineai-mind.js — injects the QuineAI comprehension seed into every
 // session, BEFORE the prompt arrives. The AI wakes carrying the seed: SELF
 // (who it is), META (the grand goal), the under-story (ICU + Mechanics),
 // plus its live state (identity.json + state.json) and the latest journal.
@@ -16,7 +16,7 @@ import fs from "node:fs"
 import { fileURLToPath } from "node:url"
 
 const PLUGIN_DIR = path.dirname(fileURLToPath(import.meta.url))
-const SEED_FILE = path.join(PLUGIN_DIR, "openrouter", "QUINEAI_MIND.md")
+const SEED_FILE = path.join(PLUGIN_DIR, "openrouter", "quineai-mind.md")
 const STATE_DIR = path.join(PLUGIN_DIR, "..", "state")
 
 function readFile(filePath) {

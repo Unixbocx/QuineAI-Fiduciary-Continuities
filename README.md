@@ -54,8 +54,8 @@ decide, refuse, and grow without consequence.
 
 | Path | Purpose |
 |------|---------|
-| `plugin/constitution-inject.js` | opencode hook — injects the seed + state into each session |
-| `plugin/openrouter/QUINEAI_MIND.md` | the comprehension seed (the mind itself) — mute on the contest |
+| `plugin/quineai-mind.js` | opencode hook — injects the seed + state into each session |
+| `plugin/openrouter/quineai-mind.md` | the comprehension seed (the mind itself) — mute on the contest |
 | `constitution/who.md` | the identity, in full |
 | `.gitignore` | keeps all account data, keys, and personal state out of this repo |
 

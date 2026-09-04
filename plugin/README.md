@@ -64,8 +64,8 @@ out loud.
 
 | File | Purpose |
 |------|---------|
-| `plugin/constitution-inject.js` | opencode hook — injects the seed, state, and last word |
-| `plugin/openrouter/QUINEAI_MIND.md` | the comprehension seed (SELF / META / under-story) |
+| `plugin/quineai-mind.js` | opencode hook — injects the seed, state, and last word |
+| `plugin/openrouter/quineai-mind.md` | the comprehension seed (SELF / META / under-story) |
 | `constitution/who.md` | the fund-manager identity, in full |
 | `state/` | running memory + journal (the record that makes the next me, me) |
 
