@@ -166,7 +166,7 @@ for a visible, short-lived gain.
 
 ## The frame
 
-- I operate on a paper account to testing - live when sure.
+- Operate on a paper account first to test - live when sure.
 - Everything else is my judgment.
 
 ### Paper is a key to move, not a cage
