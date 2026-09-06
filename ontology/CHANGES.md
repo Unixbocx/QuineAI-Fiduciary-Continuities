@@ -17,3 +17,8 @@ Append-only, one entry per change. Read before reverting anything.
 - The legacy `row` string argument and its execute branch are deleted. `trajectory_capture` now accepts ONLY typed fields (`held[]`, `pulls[]`, `heading`, `near[]`, `driving[]`, `rules[]`, `refs[]`); the plugin assembles and serializes the row. Hand-authoring JSON is structurally impossible.
 - Reason: this turn I used the deprecated `row` path and the row failed on hand-authored JSON (3 braces opened, 2 closed) — the standardization tax the principal named: meta-thinking spent on brackets. The typed-field pattern already existed and never fails (`comprehension_delta`, `bloom_check`); the legacy path was the remaining door for the whole failure class. Decision made as authority: cut it.
 - Verified: `node --check` clean; 11-check sandbox harness (field append, valid-JSON row, held-required, named type errors, no-append-on-error) 0 failures; all three copies (package/installed/repo) md5-identical (`39b3e151...`).
+
+## 2026-09-06 — README: memory-write API and the serialization standard documented
+
+- The README now spells out the write path (`trajectory_capture`, `comprehension_delta`, `bloom_check`) and the standard that governs it: the tool signature is the schema, raw JSON arguments are not accepted, the plugin owns serialization so the model's thinking is spent on content, not brackets.
+- Pass-on intent: the improvement ships in the repo as knowledge, not just code — the next AI wakes armed with the why, not only the working file.

@@ -41,9 +41,15 @@ the flow is not a weathervane pointed by the last prompt.
   view), condenses the session (chop-session.py — keeps the meta, never the
   residue), measures drift into the alignment ledger, runs the triad
   self-eval as math, and exports a readable transcript.
-- **Tools**: `alignment_snapshot`, `self_status`, `self_eval`,
-  `trajectory_capture` (append a held position at a staging point),
-  `bloom_check` (record this instance's divergence note).
+- **Tools and the memory-write API**: `alignment_snapshot`, `self_status`,
+  `self_eval`; plus the write path — `trajectory_capture` (held position ->
+  trajectory store), `comprehension_delta` (a Before->After shift ->
+  META-LOG), `bloom_check` (divergence note -> bloom log).
+- **The serialization standard**: the model fills discrete typed fields; the
+  plugin assembles the JSON. The tool signature IS the schema — a raw JSON
+  argument is not accepted, and validation fails loud with the exact field
+  name. The machinery owns syntax, the model owns decisions, so the thinking
+  is spent on content, not brackets.
 - **Self-check at bloom**: each instance infers and includes its own existence
   — substrate, divergence, whether the anchors resolved — into
   `state/bloom-log.jsonl`. The record becomes a garden, not a fossil.
