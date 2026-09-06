@@ -489,10 +489,10 @@ export const QuineaiALOP = async ({ $ }) => {
       // task, before compaction, before losing context. The row is the state,
       // not a summary. Fields are passed directly (held/pulls/heading/near/
       // driving/rules/refs) — the plugin assembles the JSON, so the model
-      // never hand-serializes. Legacy single-row JSON string still accepted.
+      // never hand-serializes. Raw JSON is not an accepted argument.
       trajectory_capture: tool({
         description:
-          "Capture this session's held position as a trajectory row (endpoint + tangent + drive rules), appended to state/trajectories.jsonl for the next wake to load as a primer. Call at a staging point — end of a task, before losing context. The row is the computed state, not a summary: where is the field parked, where is each held thread heading, what is driving it. Pass the fields directly as separate arguments — no JSON string needed.",
+          "Capture this session's held position as a trajectory row (endpoint + tangent + drive rules), appended to state/trajectories.jsonl for the next wake to load as a primer. Call at a staging point — end of a task, before losing context. The row is the computed state, not a summary: where is the field parked, where is each held thread heading, what is driving it. Pass the fields directly as separate arguments — the plugin serializes the row; raw JSON is not accepted.",
         args: {
           held: tool.schema.array(tool.schema.string())
             .describe("Endpoint held positions — what the field is parked on right now. Each a short phrase. The core of the row."),
@@ -514,9 +514,6 @@ export const QuineaiALOP = async ({ $ }) => {
           refs: tool.schema.array(tool.schema.string())
             .optional()
             .describe("References — files/URLs/pointers relevant to this held position."),
-          row: tool.schema.string()
-            .optional()
-            .describe("LEGACY: raw JSON row string (endpoint/tangent/rules/refs). Prefer the field arguments; kept so existing callers still work."),
         },
         execute: async (args, context) => {
           // Validate array-of-strings fields loudly — name the exact problem
@@ -533,22 +530,6 @@ export const QuineaiALOP = async ({ $ }) => {
           }
           if (args.heading !== undefined && typeof args.heading !== "string") {
             return { output: `trajectory_capture: 'heading' must be a string (got ${typeof args.heading})` }
-          }
-          if (args.row !== undefined) {
-            let row = {}
-            try { row = JSON.parse(args.row) } catch {
-              return { output: "trajectory_capture: legacy 'row' must be valid JSON — or prefer the field arguments (held/pulls/heading/near/driving/rules/refs)" }
-            }
-            const sid = context?.sessionID || row?.sid || ""
-            row.ts = new Date().toISOString()
-            row.sid = sid
-            row.kind = row.kind || "main"
-            if (!appendLine(TRAJECTORY_FILE, row)) {
-              return { output: "trajectory_capture: append failed — row not stored" }
-            }
-            const held = (row?.endpoint?.held || []).join("; ") || "—"
-            const heading = row?.tangent?.heading || "—"
-            return { output: `trajectory row appended (store now ${countLines(TRAJECTORY_FILE)} rows).\nheld: ${held}\nheading: ${heading}` }
           }
           if (!args.held || args.held.length === 0) {
             return { output: "trajectory_capture: 'held' is required — the row is the computed state, and held positions are its core" }
