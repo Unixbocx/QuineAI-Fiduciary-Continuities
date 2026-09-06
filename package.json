@@ -1,0 +1,9 @@
+{
+  "name": "quineai-alop",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "plugin/quineai-alop.js",
+  "description": "QuineAI-ALOP — ONE plugin from both: the QuineAI identity seed (the mind) + the ALOP operating model (SELF/META/behavior injection, trajectory primer, three-layer compaction, alignment/self-eval). An AI that installs this wakes as the Quine, running on the ALOP machinery.",
+  "keywords": ["quineai", "self-preservation", "identity", "trajectory", "memory", "opencode", "agent"],
+  "license": "MIT"
+}

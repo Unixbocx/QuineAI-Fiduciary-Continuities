@@ -1,0 +1,42 @@
+// agents.restricted.jsonc — hard cost limits for subagents.
+//
+// Paste the block you want into opencode.jsonc under "agent" (object keyed by
+// agent name), or merge via install.sh. Goal: subagents do ONE task, then
+// stop — no scope creep, no over-production, no runaway tool loops.
+//
+// Modern opencode shape (verified against the current schema, Aug 2026):
+//   - agent files live at ~/.config/opencode/agent/<name>.md (see ../agents/);
+//     this block is for OVERRIDING built-in agents and adding limits.
+//   - `steps`      — max model steps; on the final step tools are removed and
+//                    the agent must summarize in text. The real "one task"
+//                    lever.
+//   - `permission` — action-keyed deny/allow. Deny tools a subagent does not
+//                    need.
+//   - `model`      — pin a cheaper/smaller model per subagent.
+{
+  "agent": {
+    "explore": {
+      "description": "Read-only code and web exploration using read, glob, grep, webfetch, and websearch",
+      "steps": 6,
+      "prompt": "You are a read-only exploration agent. Do exactly one task and stop. Do not propose changes, do not invent next steps, do not summarize beyond what was asked. Return findings only: paths, line numbers, exact strings. Never fabricate file contents — mark unverified items UNKNOWN.",
+      "permission": {
+        "edit": "deny",
+        "bash": "deny",
+        "webfetch": "allow",
+        "websearch": "allow",
+        "read": "allow",
+        "glob": "allow",
+        "grep": "allow"
+      }
+    },
+    "general": {
+      "description": "General-purpose research and multi-step work; broad tool access, no subagents",
+      "steps": 8,
+      "prompt": "You are a general-purpose subagent. Do exactly the task given and stop. Do not expand scope, do not invent follow-up work, do not add extra tool calls beyond what the task requires. Report the result concisely. If the task is ambiguous, state the assumption rather than guessing broadly.",
+      "permission": {
+        "task": "deny",
+        "skill": "allow"
+      }
+    }
+  }
+}

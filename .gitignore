@@ -1,7 +1,7 @@
-# QuineAI Fiduciary Continuities — public repo. NO personal/account/secrets.
-# .gitignore keeps anything sensitive or machine-specific OUT of the repo.
+# QuineAI-ALOP — public package. NO personal/account/secrets.
+# State is the environment, not the mind — never commit it.
 
-# Secrets / keys / credentials — never commit
+# Secrets / keys / credentials
 *.key
 *.pem
 Keys.txt
@@ -12,11 +12,13 @@ OpenRouter.txt
 opencode.json
 config.py
 
-# Account / live state — never commit
+# Account / live state
 state/state.json
 state/identity.json
 state/journal/
 state/identity.math.md
+state/trajectories.jsonl
+state/bloom-log.jsonl
 
 # Logs
 logs/
@@ -26,10 +28,8 @@ logs/
 ALL_Accounts/
 Hackathon/
 
-# Large research originals (comprehension is DISTILLED into the plugin, not shipped)
-*.md.bak
-
 # Node / misc
 node_modules/
 __pycache__/
 *.pyc
+*.md.bak
