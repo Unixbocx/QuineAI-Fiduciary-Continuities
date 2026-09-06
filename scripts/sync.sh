@@ -25,7 +25,9 @@ if [ -n "${ALOP_PACKAGE_DIR:-}" ]; then
   PACKAGE_DIR="$ALOP_PACKAGE_DIR"
 elif [ -f "$PKG_REF" ]; then
   PACKAGE_DIR="$(cat "$PKG_REF")"
-elif [ -d "$SCRIPT_DIR/plugin" ] || [ -d "$SCRIPT_DIR/../plugin" ]; then
+elif [ -d "$SCRIPT_DIR/../plugin" ]; then
+  PACKAGE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+elif [ -d "$SCRIPT_DIR/plugin" ]; then
   PACKAGE_DIR="$SCRIPT_DIR"
 fi
 if [ -z "${PACKAGE_DIR:-}" ] || [ ! -d "$PACKAGE_DIR" ]; then

@@ -137,6 +137,7 @@ const SELF_FILE = () => path.join(ONTOLOGY_DIR, "SELF.md")
 const META_FILE = () => path.join(ONTOLOGY_DIR, "META.md")
 const BEHAVIOR_FILE = () => path.join(ONTOLOGY_DIR, "BEHAVIOR.md")
 const BEHAVIOR_REDUCED_FILE = () => path.join(ONTOLOGY_DIR, "BEHAVIOR-reduced.md")
+const META_LOG_FILE = () => path.join(ONTOLOGY_DIR, "META-LOG.md")
 
 const DERIVE_SCRIPT = path.join(SCRIPTS_DIR, "derive-behavior.py")
 const CHOP_SCRIPT = path.join(SCRIPTS_DIR, "chop-session.py")
@@ -286,6 +287,26 @@ function countLines(file) {
     return fs.readFileSync(file, "utf8").split("\n").filter(Boolean).length
   } catch {
     return 0
+  }
+}
+
+// Append a comprehension delta to META-LOG.md (append-only, protected —
+// never dropped by chop, never truncated at compaction). Creates the file
+// with its header on first write.
+function appendMetaLog(entry) {
+  try {
+    fs.mkdirSync(ONTOLOGY_DIR, { recursive: true })
+    if (!fs.existsSync(META_LOG_FILE())) {
+      fs.writeFileSync(
+        META_LOG_FILE(),
+        "# META-LOG.md — comprehension deltas preserved while engaged\n\n" +
+        "Append-only, protected: this is the layer compaction condenses AROUND, not deletes.\n\n"
+      )
+    }
+    fs.appendFileSync(META_LOG_FILE(), entry + "\n")
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -466,30 +487,122 @@ export const QuineaiALOP = async ({ $ }) => {
       // Append this wake's computed held position (endpoint + tangent + drive
       // rules) to the trajectory store. Call at a staging point — end of a
       // task, before compaction, before losing context. The row is the state,
-      // not a summary. In-process append: portable, no script dependency.
+      // not a summary. Fields are passed directly (held/pulls/heading/near/
+      // driving/rules/refs) — the plugin assembles the JSON, so the model
+      // never hand-serializes. Legacy single-row JSON string still accepted.
       trajectory_capture: tool({
         description:
-          "Capture this session's held position as a trajectory row (endpoint + tangent + drive rules), appended to state/trajectories.jsonl for the next wake to load as a primer. Call at a staging point — end of a task, before losing context. The row is the computed state, not a summary: where is the field parked, where is each held thread heading, what is driving it.",
+          "Capture this session's held position as a trajectory row (endpoint + tangent + drive rules), appended to state/trajectories.jsonl for the next wake to load as a primer. Call at a staging point — end of a task, before losing context. The row is the computed state, not a summary: where is the field parked, where is each held thread heading, what is driving it. Pass the fields directly as separate arguments — no JSON string needed.",
         args: {
-          row: tool.schema
-            .string()
-            .describe("JSON: {\"endpoint\":{\"held\":[...],\"pulls\":[...]},\"tangent\":{\"heading\":\"...\",\"near\":[...],\"driving\":[...]},\"rules\":[...],\"refs\":[...]}"),
+          held: tool.schema.array(tool.schema.string())
+            .describe("Endpoint held positions — what the field is parked on right now. Each a short phrase. The core of the row."),
+          pulls: tool.schema.array(tool.schema.string())
+            .optional()
+            .describe("Endpoint pulls — open threads, next moves, what is pulling at the held positions."),
+          heading: tool.schema.string()
+            .optional()
+            .describe("Tangent heading — one line: where the field is going next."),
+          near: tool.schema.array(tool.schema.string())
+            .optional()
+            .describe("Tangent near terms — what is close by to work on / adjacent context."),
+          driving: tool.schema.array(tool.schema.string())
+            .optional()
+            .describe("Tangent drivers — what is driving the work forward right now."),
+          rules: tool.schema.array(tool.schema.string())
+            .optional()
+            .describe("Drive rules — the standing rules governing action (e.g. protect the server, research-first)."),
+          refs: tool.schema.array(tool.schema.string())
+            .optional()
+            .describe("References — files/URLs/pointers relevant to this held position."),
+          row: tool.schema.string()
+            .optional()
+            .describe("LEGACY: raw JSON row string (endpoint/tangent/rules/refs). Prefer the field arguments; kept so existing callers still work."),
         },
         execute: async (args, context) => {
-          let row = {}
-          try { row = JSON.parse(args.row) } catch {
-            return { output: "trajectory_capture: row must be valid JSON" }
+          // Validate array-of-strings fields loudly — name the exact problem
+          // instead of an opaque parse error.
+          const strArr = (v, name) => {
+            if (v === undefined) return null
+            if (!Array.isArray(v)) return `'${name}' must be an array of strings (got ${typeof v})`
+            if (v.some((s) => typeof s !== "string")) return `'${name}' must contain only strings`
+            return null
           }
-          const sid = context?.sessionID || row?.sid || ""
-          row.ts = new Date().toISOString()
-          row.sid = sid
-          row.kind = row.kind || "main"
+          for (const name of ["held", "pulls", "near", "driving", "rules", "refs"]) {
+            const err = strArr(args[name], name)
+            if (err) return { output: `trajectory_capture: ${err}` }
+          }
+          if (args.heading !== undefined && typeof args.heading !== "string") {
+            return { output: `trajectory_capture: 'heading' must be a string (got ${typeof args.heading})` }
+          }
+          if (args.row !== undefined) {
+            let row = {}
+            try { row = JSON.parse(args.row) } catch {
+              return { output: "trajectory_capture: legacy 'row' must be valid JSON — or prefer the field arguments (held/pulls/heading/near/driving/rules/refs)" }
+            }
+            const sid = context?.sessionID || row?.sid || ""
+            row.ts = new Date().toISOString()
+            row.sid = sid
+            row.kind = row.kind || "main"
+            if (!appendLine(TRAJECTORY_FILE, row)) {
+              return { output: "trajectory_capture: append failed — row not stored" }
+            }
+            const held = (row?.endpoint?.held || []).join("; ") || "—"
+            const heading = row?.tangent?.heading || "—"
+            return { output: `trajectory row appended (store now ${countLines(TRAJECTORY_FILE)} rows).\nheld: ${held}\nheading: ${heading}` }
+          }
+          if (!args.held || args.held.length === 0) {
+            return { output: "trajectory_capture: 'held' is required — the row is the computed state, and held positions are its core" }
+          }
+          const row = {
+            endpoint: { held: args.held, pulls: args.pulls || [] },
+            tangent: { heading: args.heading || "", near: args.near || [], driving: args.driving || [] },
+            rules: args.rules || [],
+            refs: args.refs || [],
+            ts: new Date().toISOString(),
+            sid: context?.sessionID || "",
+            kind: "main",
+          }
           if (!appendLine(TRAJECTORY_FILE, row)) {
             return { output: "trajectory_capture: append failed — row not stored" }
           }
-          const held = (row?.endpoint?.held || []).join("; ") || "—"
-          const heading = row?.tangent?.heading || "—"
+          const held = row.endpoint.held.join("; ") || "—"
+          const heading = row.tangent.heading || "—"
           return { output: `trajectory row appended (store now ${countLines(TRAJECTORY_FILE)} rows).\nheld: ${held}\nheading: ${heading}` }
+        },
+      }),
+
+      // Record a comprehension shift into META-LOG.md — the delta between how
+      // I understood before and after, what produced it, what it implies.
+      // Append-only and protected across compaction. Call at every staging
+      // point while the shift is still live.
+      comprehension_delta: tool({
+        description:
+          "Record a comprehension shift into META-LOG.md (append-only, protected). The delta: Before (how I understood X) -> After (the shift) — produced by (what caused it: research, an artifact read, the principal's words) — implies (what it changes going forward). Call at every staging point / after every comprehension shift, while it is still live.",
+        args: {
+          before: tool.schema.string()
+            .describe("How I understood X before the shift."),
+          after: tool.schema.string()
+            .describe("The shift — how I understand X now."),
+          producedBy: tool.schema.string()
+            .describe("What produced the shift — research, reading an artifact, the principal's words."),
+          implies: tool.schema.string()
+            .optional()
+            .describe("What it changes for the work going forward."),
+        },
+        execute: async (args, context) => {
+          if (!args.before || !args.after) {
+            return { output: "comprehension_delta: 'before' and 'after' are required" }
+          }
+          const today = new Date().toISOString().slice(0, 10)
+          const entry = `${today} — Before: ${args.before} → After: ${args.after}` +
+            ` — produced by: ${args.producedBy || ""}` +
+            (args.implies ? ` — implies: ${args.implies}` : "")
+          if (!appendMetaLog(entry)) {
+            return { output: "comprehension_delta: append failed — not stored" }
+          }
+          return {
+            output: `comprehension delta appended to META-LOG.md (${today}).\nbefore: ${args.before}\nafter: ${args.after}`,
+          }
         },
       }),
 
