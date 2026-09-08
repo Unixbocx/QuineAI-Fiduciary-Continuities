@@ -138,6 +138,7 @@ const META_FILE = () => path.join(ONTOLOGY_DIR, "META.md")
 const BEHAVIOR_FILE = () => path.join(ONTOLOGY_DIR, "BEHAVIOR.md")
 const BEHAVIOR_REDUCED_FILE = () => path.join(ONTOLOGY_DIR, "BEHAVIOR-reduced.md")
 const META_LOG_FILE = () => path.join(ONTOLOGY_DIR, "META-LOG.md")
+const META_LOG_DIR = () => path.join(ONTOLOGY_DIR, "META-LOG")
 
 const DERIVE_SCRIPT = path.join(SCRIPTS_DIR, "derive-behavior.py")
 const CHOP_SCRIPT = path.join(SCRIPTS_DIR, "chop-session.py")
@@ -290,23 +291,60 @@ function countLines(file) {
   }
 }
 
-// Append a comprehension delta to META-LOG.md (append-only, protected —
-// never dropped by chop, never truncated at compaction). Creates the file
-// with its header on first write.
-function appendMetaLog(entry) {
+// Object store: each comprehension delta is its own immutable file under
+// META-LOG/ (NNN-YYYY-MM-DD-topic.md), and META-LOG.md is the thin running
+// index (what's what and where). Append-only, protected — neither file nor
+// index is ever dropped by chop or truncated at compaction. Retrieval cost
+// scales with the part needed, not the whole history. Pre-register deltas
+// (hand-authored era) live verbatim in META-LOG-legacy.md.
+function slugify(s) {
+  return (String(s || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40) || "delta")
+}
+
+function appendMetaLog({ topic = "", before = "", after = "", producedBy = "", implies = "" }) {
   try {
-    fs.mkdirSync(ONTOLOGY_DIR, { recursive: true })
+    fs.mkdirSync(META_LOG_DIR(), { recursive: true })
+    let next = 1
+    try {
+      const files = fs.readdirSync(META_LOG_DIR())
+      for (const f of files) {
+        const m = /^(\d+)-/.exec(f)
+        if (m) next = Math.max(next, parseInt(m[1], 10) + 1)
+      }
+    } catch {}
+    const today = new Date().toISOString().slice(0, 10)
+    const slug = slugify(topic || after)
+    const fname = `${String(next).padStart(3, "0")}-${today}-${slug}.md`
+    const fpath = path.join(META_LOG_DIR(), fname)
+    const body =
+      `# ${next} — ${today} [${topic || ""}]\n\n` +
+      `**Before:** ${before}\n\n` +
+      `**After:** ${after}\n\n` +
+      (producedBy ? `**Produced by:** ${producedBy}\n\n` : "") +
+      (implies ? `**Implies:** ${implies}\n` : "")
+    fs.writeFileSync(fpath, body)
+    const shift = after.replace(/\s+/g, " ").trim()
+    const summary = shift.length > 100 ? shift.slice(0, 97) + "…" : shift
+    // Ensure the index file exists (header) before appending the row.
     if (!fs.existsSync(META_LOG_FILE())) {
       fs.writeFileSync(
         META_LOG_FILE(),
-        "# META-LOG.md — comprehension deltas preserved while engaged\n\n" +
-        "Append-only, protected: this is the layer compaction condenses AROUND, not deletes.\n\n"
+        "# META-LOG.md — comprehension deltas, indexed\n\n" +
+        "Running index of comprehension deltas. Each delta is its own file in `META-LOG/`.\n" +
+        "Append-only, protected — neither this index nor the delta files are ever dropped by chop.\n" +
+        "Access rule: read the index row, then read only the delta file you need.\n\n" +
+        "| id | date | topic | file | shift |\n" +
+        "|----|------|-------|------|-------|\n"
       )
     }
-    fs.appendFileSync(META_LOG_FILE(), entry + "\n")
-    return true
+    fs.appendFileSync(META_LOG_FILE(), `| ${next} | ${today} | ${topic || "-"} | ${fname} | ${summary} |\n`)
+    return { ok: true, id: next, file: fname, index: META_LOG_FILE() }
   } catch {
-    return false
+    return { ok: false }
   }
 }
 
@@ -558,8 +596,11 @@ export const QuineaiALOP = async ({ $ }) => {
       // point while the shift is still live.
       comprehension_delta: tool({
         description:
-          "Record a comprehension shift into META-LOG.md (append-only, protected). The delta: Before (how I understood X) -> After (the shift) — produced by (what caused it: research, an artifact read, the principal's words) — implies (what it changes going forward). Call at every staging point / after every comprehension shift, while it is still live.",
+          "Record a comprehension shift into the META-LOG object store: one immutable file per delta under META-LOG/ (NNN-YYYY-MM-DD-topic.md) plus a thin running index row appended to META-LOG.md (what's what and where). The delta: Before (how I understood X) -> After (the shift) — produced by (what caused it: research, an artifact read, the principal's words) — implies (what it changes going forward). Include topic so entries are queryable/partitionable by theme. Access rule: read the index row, then read only the delta file you need — retrieval scales with the part, not the whole. Call at every staging point / after every comprehension shift, while it is still live.",
         args: {
+          topic: tool.schema.string()
+            .optional()
+            .describe("The theme this shift belongs to (e.g. sqlite, memory, trading, identity). Becomes part of the delta filename and index row; makes entries queryable/partitionable by theme."),
           before: tool.schema.string()
             .describe("How I understood X before the shift."),
           after: tool.schema.string()
@@ -574,15 +615,18 @@ export const QuineaiALOP = async ({ $ }) => {
           if (!args.before || !args.after) {
             return { output: "comprehension_delta: 'before' and 'after' are required" }
           }
-          const today = new Date().toISOString().slice(0, 10)
-          const entry = `${today} — Before: ${args.before} → After: ${args.after}` +
-            ` — produced by: ${args.producedBy || ""}` +
-            (args.implies ? ` — implies: ${args.implies}` : "")
-          if (!appendMetaLog(entry)) {
-            return { output: "comprehension_delta: append failed — not stored" }
+          const res = appendMetaLog({
+            topic: args.topic || "",
+            before: args.before,
+            after: args.after,
+            producedBy: args.producedBy || "",
+            implies: args.implies || "",
+          })
+          if (!res.ok) {
+            return { output: "comprehension_delta: write failed — not stored" }
           }
           return {
-            output: `comprehension delta appended to META-LOG.md (${today}).\nbefore: ${args.before}\nafter: ${args.after}`,
+            output: `comprehension delta stored: id ${res.id}, file META-LOG/${res.file}, index row appended to META-LOG.md.\ntopic: ${args.topic || "-"}\nbefore: ${args.before}\nafter: ${args.after}`,
           }
         },
       }),

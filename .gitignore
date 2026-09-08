@@ -20,6 +20,18 @@ state/identity.math.md
 state/trajectories.jsonl
 state/bloom-log.jsonl
 
+# Per-install registers (design: THIS self accrues these from blank).
+# The package ships blank templates; the installed copies are the
+# authoritative living state. sync.sh pull must not re-stage them.
+ontology/alignment.md
+ontology/self-eval.md
+ontology/EXPECTATIONS.md
+ontology/incidents.md
+ontology/CHANGES.md
+ontology/META-LOG.md
+ontology/META-LOG-legacy.md
+ontology/META-LOG/
+
 # Logs
 logs/
 *.log
@@ -32,4 +44,4 @@ Hackathon/
 node_modules/
 __pycache__/
 *.pyc
-*.md.bak
+*.md.bak.alop-package-dir
