@@ -33,3 +33,5 @@ node_modules/
 __pycache__/
 *.pyc
 *.md.bak
+# Sanctuary guard local deny-list — never committed
+scripts/.git-guard-deny
