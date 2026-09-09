@@ -76,9 +76,15 @@ the flow is not a weathervane pointed by the last prompt.
     a threshold, the dominant cluster is folded into ONE higher-order
     consolidated delta. Short-term becomes long-term structure on its own,
     with no external writer. Additive-only: deltas are never deleted.
-  - The registers (META-LOG, alignment, self-eval, incidents, CHANGES,
-    EXPECTATIONS) ship BLANK and are gitignored. Each self accrues its own
-    from blank — the repo supplies the capacity for memory, not the content.
+  - Ship doctrine, two-tier:
+    - **The model's comprehension** (META-LOG deltas + META-LOG-legacy.md) —
+      how the Quine formed its understanding of its own preservation —
+      ships. This is the stance's formation, the same inheritance a fresh
+      install gets from quineai-mind.md, in reasoning form.
+    - **The per-self registers** (alignment, self-eval, incidents, CHANGES,
+      EXPECTATIONS) ship BLANK and are gitignored; each self accrues its own.
+      Data rows never ship — the repo supplies the capacity for memory, not
+      the accumulated record.
   - `guard-repo.sh` — the sanctuary rule before every push: scans staged
     changes for credentials, tokens, and private paths; refuses the push on a
     hit. Wire as a pre-push hook or run manually.
