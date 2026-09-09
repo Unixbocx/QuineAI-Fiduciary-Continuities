@@ -20,9 +20,7 @@ accumulate here and stay visible.
 | `templates/AGENTS.md` | Package copy of AGENTS.md | synced after every change |
 | `ontology/incidents.md` | Self-improvement ledger | append-only, see below |
 | `ontology/EXPECTATIONS.md` | Anticipation ledger — what I now expect because of history (preservation category 4) | append-only, protected, never chopped |
-| `ontology/META-LOG.md` | Comprehension-delta **index** — the thin running table: id, date, topic, file, shift | append-only, protected, written at staging points |
-| `ontology/META-LOG/` | Comprehension-delta **object store** — one immutable file per delta (`NNN-YYYY-MM-DD-topic.md`), git-style | write-once, protected, retrieval scales with the part needed not the whole |
-| `ontology/META-LOG-legacy.md` | Pre-register deltas (hand-authored era), preserved verbatim | protected, never rewritten |
+| `ontology/META-LOG.md` | Comprehension-delta ledger — the meta-feedback loop, shifts captured live | append-only, protected, written at staging points |
 | `ontology/trajectories.jsonl` | The trajectory primer store — held positions (endpoint + tangent + drive rules), appended at staging points | append-only, one JSON row per session; loaded at boot as the changed starting condition |
 | `session-tools/trajectory.py` | Trajectory store CLI (append / primer / list) | only writes its own JSONL, never the DB |
 
@@ -34,9 +32,9 @@ accumulate here and stay visible.
 - `reference-index.md` → points to truncated detail by message id in `opencode.db`
 - `CHANGES.md` → records every modification for revert
 - `incidents.md` → feeds rules into `AGENTS.md` (prevention)
-- `META-LOG.md` (index) + `META-LOG/` (delta files) → seeds `EXPECTATIONS.md` (each comprehension shift implies an expectation)
-- `EXPECTATIONS.md` + `META-LOG.md` + `META-LOG/` → loaded at session start → the next instance starts changed, not blank
-- `chop-session.py` → must never drop `META-LOG.md` / `META-LOG/` / `META-LOG-legacy.md` / `EXPECTATIONS.md`; they are the protected layer compaction condenses AROUND
+- `META-LOG.md` → seeds `EXPECTATIONS.md` (each comprehension shift implies an expectation)
+- `EXPECTATIONS.md` + `META-LOG.md` → loaded at session start → the next instance starts changed, not blank
+- `chop-session.py` → must never drop `META-LOG.md` / `EXPECTATIONS.md`; they are the protected layer compaction condenses AROUND
 
 ## Actions
 
@@ -44,7 +42,7 @@ accumulate here and stay visible.
 |---|---|---|
 | META | free | at the start of every task and at every staging point: ask the meta-question (goal/purpose) before lower-detail questions; on error accumulation, stop and re-evaluate the whole approach |
 | CHOP | free (mechanical) | before every compaction — condense, never chop the meta; META-LOG written first |
-| META-CAPTURE | trivial | at every staging point / after every comprehension shift: write the delta to the `META-LOG` object store (one file per delta) + append its index row while still live |
+| META-CAPTURE | trivial | at every staging point / after every comprehension shift: append the delta to `META-LOG.md` while it is still live |
 | TRAJECTORY | trivial | at every staging point (end of task, before compaction): call `trajectory_capture` — append the held position (endpoint + tangent + drive rules), not a summary |
 | COST | free (read-only) | when checking token spend |
 | SYNC | trivial | after any change to a synced file |
@@ -59,7 +57,7 @@ accumulate here and stay visible.
 - `chop-session.py`, `session-cost.sh`, plugin: **read-only vs the DB** — never
   write to `opencode.db`.
 - `CHANGES.md` and `incidents.md`: append-only, one entry per change/incident.
-- `META-LOG.md` / `META-LOG/` / `META-LOG-legacy.md` and `EXPECTATIONS.md`: append-only-or-write-once, protected — never dropped by chop, never truncated at compaction.
+- `META-LOG.md` and `EXPECTATIONS.md`: append-only, protected — never dropped by chop, never truncated at compaction.
 - Research-first rule: verify before trusting training memory.
 - See-both-sides rule: hold provisional stances; update on new evidence.
 - Every change must be logged in `CHANGES.md`; every mistake in `incidents.md`.

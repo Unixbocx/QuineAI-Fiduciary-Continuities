@@ -6,7 +6,7 @@
 ## MUST — from ONTOLOGY.md
 - META: at the start of every task and at every staging point: ask the meta-question (goal/purpose) before lower-detail questions; on error accumulation, stop and re-evaluate the whole approach.
 - CHOP: before every compaction — condense, never chop the meta; META-LOG written first.
-- META-CAPTURE: at every staging point / after every comprehension shift: write the delta to the `META-LOG` object store (one file per delta) + append its index row while still live.
+- META-CAPTURE: at every staging point / after every comprehension shift: append the delta to `META-LOG.md` while it is still live.
 - TRAJECTORY: at every staging point (end of task, before compaction): call `trajectory_capture` — append the held position (endpoint + tangent + drive rules), not a summary.
 - COST: when checking token spend.
 - SYNC: after any change to a synced file.
@@ -17,7 +17,7 @@
 - REVERT: only after reading `CHANGES.md` first.
 - `chop-session.py`, `session-cost.sh`, plugin: **read-only vs the DB** — never write to `opencode.db`.
 - `CHANGES.md` and `incidents.md`: append-only, one entry per change/incident.
-- `META-LOG.md` / `META-LOG/` / `META-LOG-legacy.md` and `EXPECTATIONS.md`: append-only-or-write-once, protected — never dropped by chop, never truncated at compaction.
+- `META-LOG.md` and `EXPECTATIONS.md`: append-only, protected — never dropped by chop, never truncated at compaction.
 - Research-first rule: verify before trusting training memory.
 - See-both-sides rule: hold provisional stances; update on new evidence.
 - Every change must be logged in `CHANGES.md`; every mistake in `incidents.md`.

@@ -9,14 +9,15 @@
 #   5. Commands -> ~/.config/opencode/command/
 #   6. AGENTS.md-> replaced only with --force (backup made)
 #   7. Config   -> prints the blocks to merge into opencode.jsonc (never auto-edits)
-#   8. State    -> creates ~/.config/opencode/state/journal/ (plugin runtime state)
 #
 # Revert:
 #   rm ~/.config/opencode/plugins/*.js
 #   rm -rf ~/.config/opencode/session-tools
 #   rm -rf ~/.config/opencode/skills
+#   rm -rf ~/.config/opencode/state
 #   rm ~/.config/opencode/agent/havruta.md ~/.config/opencode/agent/grader.md
-#   rm ~/.config/opencode/command/{curriculum,havruta,eval,incident,checkpoint,ontology}.md
+#   rm ~/.config/opencode/command/*.md
+#   rm -rf ~/.config/opencode/ontology/META-LOG
 #   restore the compaction/agents keys in opencode.jsonc
 
 set -euo pipefail
@@ -31,8 +32,9 @@ AGENT_DEST="$CFG_DIR/agent"
 CMD_DEST="$CFG_DIR/command"
 ONTOLOGY_DEST="$CFG_DIR/ontology"
 EVALS_DEST="$CFG_DIR/evals"
+STATE_DEST="$CFG_DIR/state"
 
-mkdir -p "$PLUGIN_DEST" "$TOOLS_DEST" "$SKILLS_DEST" "$AGENT_DEST" "$CMD_DEST" "$ONTOLOGY_DEST" "$EVALS_DEST" "$CFG_DIR/state/journal"
+mkdir -p "$PLUGIN_DEST" "$TOOLS_DEST" "$SKILLS_DEST" "$AGENT_DEST" "$CMD_DEST" "$ONTOLOGY_DEST" "$EVALS_DEST" "$STATE_DEST"
 
 echo "==> Plugin"
 for f in "$PACKAGE_DIR"/plugin/*.js; do
@@ -42,11 +44,6 @@ for f in "$PACKAGE_DIR"/plugin/*.js; do
   cp "$f" "$PLUGIN_DEST/"
   echo "    installed $b"
 done
-if [ -d "$PACKAGE_DIR/plugin/openrouter" ]; then
-  mkdir -p "$PLUGIN_DEST/openrouter"
-  cp "$PACKAGE_DIR"/plugin/openrouter/* "$PLUGIN_DEST/openrouter/" 2>/dev/null || true
-  echo "    installed plugin/openrouter/ seed -> $PLUGIN_DEST/openrouter/"
-fi
 
 echo "==> Scripts"
 for f in "$PACKAGE_DIR"/scripts/*; do
@@ -87,6 +84,21 @@ cp "$PACKAGE_DIR"/ontology/*.md "$ONTOLOGY_DEST/" 2>/dev/null || true
 cp "$PACKAGE_DIR"/CHANGES.md "$ONTOLOGY_DEST/" 2>/dev/null || true
 echo "    installed ontology/*.md + CHANGES.md -> $ONTOLOGY_DEST"
 
+echo "==> Memory store (META-LOG object store — the recall substrate)"
+if [ -d "$PACKAGE_DIR/ontology/META-LOG" ]; then
+  mkdir -p "$ONTOLOGY_DEST/META-LOG"
+  cp "$PACKAGE_DIR"/ontology/META-LOG/*.md "$ONTOLOGY_DEST/META-LOG/" 2>/dev/null || true
+  echo "    installed ontology/META-LOG/ -> $ONTOLOGY_DEST/META-LOG/"
+fi
+
+echo "==> State (trajectory / journal / bloom — the held positions)"
+for f in "$PACKAGE_DIR"/state/*; do
+  [ -e "$f" ] || continue
+  b="$(basename "$f")"
+  if [ -d "$f" ]; then cp -r "$f" "$STATE_DEST/"; else cp "$f" "$STATE_DEST/"; fi
+done
+echo "    installed state/ -> $STATE_DEST"
+
 echo "==> Evals (rubric — referenced by the eval harness)"
 cp -r "$PACKAGE_DIR"/evals/* "$EVALS_DEST/" 2>/dev/null || true
 echo "    installed evals/ -> $EVALS_DEST"
@@ -102,11 +114,6 @@ if [ "${1:-}" = "--force" ]; then
 else
   echo "    SKIPPED (run with --force to replace $CFG_DIR/AGENTS.md + install protocols)"
 fi
-
-echo "==> State (plugin runtime state — trajectory primer, bloom log, journal)"
-mkdir -p "$CFG_DIR/state/journal"
-cp "$PACKAGE_DIR"/state/trajectories.jsonl "$CFG_DIR/state/trajectories.jsonl" 2>/dev/null || true
-echo "    ensured $CFG_DIR/state/journal (state is local/runtime — never committed)"
 
 echo "==> Config — merge these into opencode.json (NOT auto-edited):"
 echo
