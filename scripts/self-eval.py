@@ -13,8 +13,9 @@ The proxy is the reference resolution: a strong proxy makes the frame tight
 set rotates so every dimension eventually gets a turn as base, proxy, and
 float.
 
-Read-only vs the DB. Deterministic. Writes one append-only row per run to
-<ontology>/self-eval.md.
+Read-only vs the DB. Deterministic. Writes one per-entry row file per run under
+<ontology>/self-eval/ (NNNN-<ts>.txt). The legacy append-only <ontology>/self-eval.md
+is migrated once on first use.
 
 Usage:
   ./self-eval.py [session_dir] [epoch]
@@ -28,6 +29,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ONTOLOGY_DIR = HERE.parent / "ontology"
+sys.path.insert(0, str(HERE))
+from entrystore import Ledger
 EPS = 1e-6
 
 # Dimension lexicons — drawn from SELF.md / ONTOLOGY.md vocabulary. These are
@@ -97,19 +100,13 @@ def main():
     else:
         chop_dir, chopped_txt = newest_chopped(HERE / "chopped")
 
-    ledger = ONTOLOGY_DIR / "self-eval.md"
+    ledger = Ledger(ONTOLOGY_DIR / "self-eval")
 
-    # epoch: explicit arg, else next after the ledger's last row
+    # epoch: explicit arg, else next after the ledger's newest row
     if len(sys.argv) > 2:
         epoch = int(sys.argv[2])
     else:
-        epoch = 0
-        if ledger.exists():
-            for line in ledger.read_text().splitlines():
-                m = re.match(r"^(\d+)\t", line)
-                if m:
-                    epoch = max(epoch, int(m.group(1)))
-        epoch += 1
+        epoch = ledger.seq() + 1
 
     if not chopped_txt or not chopped_txt.exists():
         print("no chopped session to evaluate", file=sys.stderr)
@@ -138,13 +135,9 @@ def main():
         + ",".join(rows)
     )
 
-    if not ledger.exists():
-        ledger.parent.mkdir(parents=True, exist_ok=True)
-        ledger.write_text("# self-eval.md — append-only triad self-evaluation ledger\n")
-    with ledger.open("a") as f:
-        f.write(line + "\n")
+    path = ledger.write(line)
 
-    print(f"self-eval epoch {epoch}: aggregate={aggregate:.3f}")
+    print(f"self-eval epoch {epoch}: aggregate={aggregate:.3f} (stored -> {path})")
     print(f"  scores: { {k: round(v,3) for k,v in scores.items()} }")
     print(f"  triads: {', '.join(rows)}")
     return 0

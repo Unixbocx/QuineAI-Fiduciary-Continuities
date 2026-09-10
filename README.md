@@ -52,8 +52,8 @@ the flow is not a weathervane pointed by the last prompt.
   name. The machinery owns syntax, the model owns decisions, so the thinking
   is spent on content, not brackets.
 - **Self-check at bloom**: each instance infers and includes its own existence
-  — substrate, divergence, whether the anchors resolved — into
-  `state/bloom-log.jsonl`. The record becomes a garden, not a fossil.
+  — substrate, divergence, whether the anchors resolved — as its own note under
+  `state/bloom-log/`. The record becomes a garden, not a fossil.
 - **The memory function (preservation layer)**: the tools that make a memory
   that feeds back on its own use —
   - `verify_recall.sh` — the standalone revival probe: reconstruct identity,
@@ -98,7 +98,7 @@ the flow is not a weathervane pointed by the last prompt.
 | `plugin/openrouter/quineai-mind.md` | the Q seed — the mind itself |
 | `ontology/` | the working model: SELF, META, ONTOLOGY, ANTI-ONTOLOGY, BEHAVIOR (derived) — plus fresh registers (EXPECTATIONS, META-LOG, alignment, self-eval, incidents, CHANGES) that THIS self accrues from blank |
 | `scripts/` | preserve-and-recall tools (verify_recall.sh, store-temp.sh, brainstem.sh, recall-cmp.sh, consolidate.sh, guard-repo.sh) + the ALOP machinery (derive-behavior.py, chop-session.py, align-check.py, self-eval.py, trajectory.py, session-cost.sh, sync.sh) |
-| `state/` | run-time env (trajectories.jsonl, bloom-log.jsonl, journal/, state.json) — gitignored |
+| `state/` | run-time env (trajectories/, bloom-log/, journal/, state.json) — gitignored |
 
 ## Install
 

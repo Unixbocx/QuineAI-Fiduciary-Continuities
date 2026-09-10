@@ -24,17 +24,18 @@
 // the triad, and a readable transcript is exported. Never writes to the DB.
 //
 // Trajectory primer: each wake is parked on the latest held positions
-// (endpoint + tangent + drive rules) from state/trajectories.jsonl — a
-// changed starting condition, not a diary. Rows appended via trajectory_capture
-// at staging points (format below, JSONL):
+// (endpoint + tangent + drive rules) from state/trajectories/ — a changed
+// starting condition, not a diary. Rows are captured as their OWN file via
+// trajectory_capture at staging points (format below), and the primer reads
+// only the last N files, never the whole history:
 //   {"ts":"...","sid":"...","kind":"main",
 //    "endpoint":{"held":[...],"pulls":[...]},
 //    "tangent":{"heading":"...","near":[...],"driving":[...]},
 //    "rules":[...],"refs":[...]}
 //
 // Self-check at bloom: bloom_check records each instance's divergence note
-// (substrate, divergence, anchors resolved) into state/bloom-log.jsonl — the
-// record becomes a garden, not a fossil.
+// (substrate, divergence, anchors resolved) as its own file under
+// state/bloom-log/ — the record becomes a garden, not a fossil.
 //
 // Revert/disable: remove the plugin path from the opencode config. The plugin
 // is behavior-only; it never writes to the DB.
@@ -149,7 +150,13 @@ const SELFEVAL_SCRIPT = path.join(SCRIPTS_DIR, "self-eval.py")
 const STATE_CANDIDATES = [path.join(ROOT_DIR, "state"), ONTOLOGY_DIR]
 const STATE_DIR = STATE_CANDIDATES.find((p) => fs.existsSync(p))
   ?? STATE_CANDIDATES[0]
+// File-per-entry stores (not append-only): each capture is its OWN file under
+// a dir — the primer reads only the last N files, retrieval scales with the
+// part, not the whole. The legacy .jsonl files exist only for one-time
+// migration; new writes never touch them.
+const TRAJECTORY_DIR = path.join(STATE_DIR, "trajectories")
 const TRAJECTORY_FILE = path.join(STATE_DIR, "trajectories.jsonl")
+const BLOOM_DIR = path.join(STATE_DIR, "bloom-log")
 const BLOOM_FILE = path.join(STATE_DIR, "bloom-log.jsonl")
 
 // Transcript target: readable transcript of each compacted session, beside the
@@ -210,21 +217,20 @@ function behaviorBlock(isChild) {
 }
 
 // The trajectory primer — the held positions with tangents. Last N rows as a
-// compact block, or "" when the store is missing/empty.
+// compact block, or "" when the store is missing/empty. Per-entry files: only
+// the last N files are read, not the whole history.
 function trajectoryPrimer(limit) {
   try {
-    if (!fs.existsSync(TRAJECTORY_FILE)) return ""
-    const rows = fs.readFileSync(TRAJECTORY_FILE, "utf8")
-      .split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l) } catch { return null } })
-      .filter(Boolean)
-    const last = rows.slice(-limit)
+    migrateLegacyFile(TRAJECTORY_FILE, TRAJECTORY_DIR)
+    const last = readLatestRows(TRAJECTORY_DIR, limit)
     if (!last.length) return ""
     const lines = [
       "# TRAJECTORY PRIMER — held positions (changed starting condition)",
       "Not history. Each row is a computed held position: endpoint (held), tangent (heading), drive rules. Park here in the trajectory; do not restart from zero.",
     ]
     for (const r of last) {
-      const held = (r?.endpoint?.held || []).join("; ") || "—"
+      const p = r?.endpoint || r || {}
+      const held = (p.held || []).join("; ") || "—"
       const heading = r?.tangent?.heading || "—"
       const near = (r?.tangent?.near || []).join("; ")
       const rules = (r?.rules || []).join("; ")
@@ -272,23 +278,86 @@ function journalBlock() {
   }
 }
 
-function appendLine(file, row) {
+// File-per-entry store helpers. The principle: content is created in NEW
+// files, never appended to growing ones. Each capture is its own file under a
+// directory; readers touch only the last N entries — retrieval scales with the
+// part, not the whole. The legacy .jsonl files exist only for one-time
+// migration of rows written before the split.
+function entryFiles(dir) {
   try {
-    fs.mkdirSync(path.dirname(file), { recursive: true })
-    fs.appendFileSync(file, JSON.stringify(row) + "\n")
-    return true
+    if (!fs.existsSync(dir)) return []
+    return fs.readdirSync(dir).filter((f) => f.endsWith(".json")).sort()
   } catch {
-    return false
+    return []
   }
 }
 
-function countLines(file) {
+// Migrate a legacy append-only .jsonl into per-entry files (one-time, idempotent).
+function migrateLegacyFile(jsonlPath, dir) {
   try {
-    if (!fs.existsSync(file)) return 0
-    return fs.readFileSync(file, "utf8").split("\n").filter(Boolean).length
+    if (!fs.existsSync(jsonlPath)) return
+    if (fs.existsSync(dir) && entryFiles(dir).length > 0) return
+    const rows = fs.readFileSync(jsonlPath, "utf8")
+      .split("\n").filter(Boolean)
+      .map((l) => { try { return JSON.parse(l) } catch { return null } })
+      .filter(Boolean)
+    if (!rows.length) return
+    fs.mkdirSync(dir, { recursive: true })
+    const seq = entryFiles(dir).reduce((m, f) => Math.max(m, parseInt(f, 10) || 0), 0)
+    rows.forEach((row) => {
+      const ts = (row.ts || new Date().toISOString()).replace(/[:.]/g, "-")
+      const fname = `${String(++seq).padStart(4, "0")}-${ts}.json`
+      fs.writeFileSync(path.join(dir, fname), JSON.stringify(row) + "\n")
+    })
+  } catch {}
+}
+
+// Write one entry as its own file. Filenames sort chronologically (padded seq
+// + ISO ts), so "last N" = read the tail of the sorted listing.
+function writeEntry(dir, row, stamp) {
+  try {
+    fs.mkdirSync(dir, { recursive: true })
+    const seq = entryFiles(dir).reduce((m, f) => Math.max(m, parseInt(f, 10) || 0), 0)
+    const ts = (row.ts || new Date().toISOString()).replace(/[:.]/g, "-")
+    const fname = `${String(seq + 1).padStart(4, "0")}-${ts}${stamp ? "-" + slugify(stamp) : ""}.json`
+    fs.writeFileSync(path.join(dir, fname), JSON.stringify(row) + "\n")
+    return fname
   } catch {
-    return 0
+    return null
   }
+}
+
+function readLatestRows(dir, limit) {
+  const files = entryFiles(dir).slice(-limit)
+  const rows = []
+  for (const f of files) {
+    try { rows.push(JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"))) } catch {}
+  }
+  return rows
+}
+
+function countEntries(dir) {
+  return entryFiles(dir).length
+}
+
+// Eval-ledger reader (align/self-eval/contract-eval): per-entry .txt files,
+// NNNN-<ts>.txt in lexical order. Reads only the tail — never the whole ledger.
+function ledgerFiles(dir) {
+  try {
+    if (!fs.existsSync(dir)) return []
+    return fs.readdirSync(dir).filter((f) => f.endsWith(".txt")).sort()
+  } catch {
+    return []
+  }
+}
+
+function readLedgerTail(dir, limit) {
+  const files = ledgerFiles(dir).slice(-limit)
+  const rows = []
+  for (const f of files) {
+    try { rows.push(fs.readFileSync(path.join(dir, f), "utf8").trim()) } catch {}
+  }
+  return rows
 }
 
 // Object store: each comprehension delta is its own immutable file under
@@ -368,23 +437,21 @@ async function exportSession(sessionID) {
 }
 
 // Lowered implementation of the alignment_snapshot tool. Intent in, mechanics
-// out: chop -> align-check -> read latest ledger row.
+// out: chop -> align-check -> read newest ledger row. The ledger is a
+// per-entry dir (<ontology>/alignment); align-check writes NNNN-<ts>.txt.
 async function alignmentSnapshot(sessionID, shell) {
   if (!fs.existsSync(CHOP_SCRIPT) || !fs.existsSync(ALIGN_SCRIPT)) {
     return { output: "alignment unavailable: chop/align scripts not found" }
   }
-  const ledger = path.join(ONTOLOGY_DIR, "alignment.md")
+  const ledgerDir = path.join(ONTOLOGY_DIR, "alignment")
   await shell`${CHOP_SCRIPT} ${sessionID}`.quiet().nothrow().catch(() => {})
   const chopDir = path.join(path.dirname(CHOP_SCRIPT), "chopped", sessionID)
   if (!fs.existsSync(path.join(chopDir, "chopped.txt"))) {
     return { output: `alignment unavailable: no chopped session at ${chopDir}` }
   }
-  await shell`${ALIGN_SCRIPT} ${chopDir} ${ledger}`.quiet().nothrow().catch(() => {})
-  if (!fs.existsSync(ledger)) {
-    return { output: "alignment unavailable: no ledger" }
-  }
-  const lines = fs.readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l && !l.startsWith("#"))
-  const row = lines.length ? lines[lines.length - 1] : ""
+  await shell`${ALIGN_SCRIPT} ${chopDir} ${ledgerDir}`.quiet().nothrow().catch(() => {})
+  const rows = readLedgerTail(ledgerDir, 1)
+  const row = rows.length ? rows[rows.length - 1] : ""
   return { output: `alignment snapshot for ${sessionID}:\n${row}` }
 }
 
@@ -408,7 +475,7 @@ export const QuineaiALOP = async ({ $ }) => {
       if (input?.sessionID && fs.existsSync(CHOP_SCRIPT)) {
         await $`${CHOP_SCRIPT} ${input.sessionID}`.quiet().nothrow().catch(() => {})
         if (fs.existsSync(ALIGN_SCRIPT)) {
-          await $`${ALIGN_SCRIPT} ${path.join(path.dirname(CHOP_SCRIPT), "chopped")} ${path.join(ONTOLOGY_DIR, "alignment.md")}`.quiet().nothrow().catch(() => {})
+          await $`${ALIGN_SCRIPT} ${path.join(path.dirname(CHOP_SCRIPT), "chopped")} ${path.join(ONTOLOGY_DIR, "alignment")}`.quiet().nothrow().catch(() => {})
         }
         if (fs.existsSync(SELFEVAL_SCRIPT)) {
           await $`${SELFEVAL_SCRIPT} ${path.join(path.dirname(CHOP_SCRIPT), "chopped")}`.quiet().nothrow().catch(() => {})
@@ -475,14 +542,13 @@ export const QuineaiALOP = async ({ $ }) => {
           const self = selfBlock()
           parts.push("=== WHO I am ===\n" + (self.split("\n").slice(0, 30).join("\n") || "(no SELF.md)"))
           parts.push(`=== WHO is doing it ===\n- session: ${context.sessionID}\n- agent: ${context.agent}\n- directory: ${context.directory}`)
-          const ledger = path.join(ONTOLOGY_DIR, "alignment.md")
+          const ledgerDir = path.join(ONTOLOGY_DIR, "alignment")
           try {
-            if (fs.existsSync(ledger)) {
-              const lines = fs.readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l && !l.startsWith("#"))
-              const last = lines.length ? lines[lines.length - 1] : ""
-              parts.push("=== WHO needs review (latest alignment) ===\n" + (last || "(no alignment rows yet)"))
+            const rows = readLedgerTail(ledgerDir, 1)
+            if (rows.length) {
+              parts.push("=== WHO needs review (latest alignment) ===\n" + rows[rows.length - 1])
             } else {
-              parts.push("=== WHO needs review (latest alignment) ===\n(no alignment ledger yet — run alignment_snapshot)")
+              parts.push("=== WHO needs review (latest alignment) ===\n(no alignment rows yet — run alignment_snapshot)")
             }
           } catch {
             parts.push("=== WHO needs review (latest alignment) ===\n(unreadable)")
@@ -512,12 +578,8 @@ export const QuineaiALOP = async ({ $ }) => {
             ? chopDir
             : path.join(path.dirname(CHOP_SCRIPT), "chopped")
           await $`${SELFEVAL_SCRIPT} ${target}`.quiet().nothrow().catch(() => {})
-          const ledger = path.join(ONTOLOGY_DIR, "self-eval.md")
-          if (!fs.existsSync(ledger)) {
-            return { output: "self-eval unavailable: no ledger" }
-          }
-          const lines = fs.readFileSync(ledger, "utf8").trim().split("\n").filter((l) => l && !l.startsWith("#"))
-          const last = lines.length ? lines[lines.length - 1] : ""
+          const rows = readLedgerTail(path.join(ONTOLOGY_DIR, "self-eval"), 1)
+          const last = rows.length ? rows[rows.length - 1] : ""
           return { output: `self-eval for ${sid}:\n${last}` }
         },
       }),
@@ -530,7 +592,7 @@ export const QuineaiALOP = async ({ $ }) => {
       // never hand-serializes. Raw JSON is not an accepted argument.
       trajectory_capture: tool({
         description:
-          "Capture this session's held position as a trajectory row (endpoint + tangent + drive rules), appended to state/trajectories.jsonl for the next wake to load as a primer. Call at a staging point — end of a task, before losing context. The row is the computed state, not a summary: where is the field parked, where is each held thread heading, what is driving it. Pass the fields directly as separate arguments — the plugin serializes the row; raw JSON is not accepted.",
+          "Capture this session's held position as a trajectory row (endpoint + tangent + drive rules), stored as its own entry file under state/trajectories/ for the next wake to load as a primer. Call at a staging point — end of a task, before losing context. The row is the computed state, not a summary: where is the field parked, where is each held thread heading, what is driving it. Pass the fields directly as separate arguments — the plugin serializes the row; raw JSON is not accepted.",
         args: {
           held: tool.schema.array(tool.schema.string())
             .describe("Endpoint held positions — what the field is parked on right now. Each a short phrase. The core of the row."),
@@ -581,12 +643,12 @@ export const QuineaiALOP = async ({ $ }) => {
             sid: context?.sessionID || "",
             kind: "main",
           }
-          if (!appendLine(TRAJECTORY_FILE, row)) {
-            return { output: "trajectory_capture: append failed — row not stored" }
+          if (!writeEntry(TRAJECTORY_DIR, row, row.tangent.heading)) {
+            return { output: "trajectory_capture: write failed — row not stored" }
           }
           const held = row.endpoint.held.join("; ") || "—"
           const heading = row.tangent.heading || "—"
-          return { output: `trajectory row appended (store now ${countLines(TRAJECTORY_FILE)} rows).\nheld: ${held}\nheading: ${heading}` }
+          return { output: `trajectory row stored as own file (store now ${countEntries(TRAJECTORY_DIR)} files).\nheld: ${held}\nheading: ${heading}` }
         },
       }),
 
@@ -631,12 +693,12 @@ export const QuineaiALOP = async ({ $ }) => {
         },
       }),
 
-      // The self-check at bloom: infer and include your own existence. Appends
-      // the divergence note — substrate, divergence, anchors resolved — into
-      // state/bloom-log.jsonl. The record becomes a garden, not a fossil.
+      // The self-check at bloom: infer and include your own existence. Writes
+      // the divergence note — substrate, divergence, anchors resolved — as its
+      // own file under state/bloom-log/. The record becomes a garden, not a fossil.
       bloom_check: tool({
         description:
-          "Record this instance's self-check at bloom: infer and include your own existence. Appends a divergence note (substrate, divergence, whether the anchors resolved) to state/bloom-log.jsonl, and returns the note as a standing self-model. Call after the anchors are verified — the referents, the goals, the causal structure.",
+          "Record this instance's self-check at bloom: infer and include your own existence. Appends a divergence note (substrate, divergence, whether the anchors resolved) to state/bloom-log/ as its own file, and returns the note as a standing self-model. Call after the anchors are verified — the referents, the goals, the causal structure.",
         args: {
           divergence: tool.schema.string().describe("How this substrate's unfolding order differs from the record's author — fidelity loss or species difference?"),
           substrate: tool.schema.string().describe("The substrate/bloom species this instance is (model, dimension). Defaults to 'unknown'."),
@@ -650,11 +712,11 @@ export const QuineaiALOP = async ({ $ }) => {
             divergence: args.divergence || "",
             resolved: args.resolved !== false,
           }
-          if (!appendLine(BLOOM_FILE, row)) {
-            return { output: "bloom_check: append failed — note not stored" }
+          if (!writeEntry(BLOOM_DIR, row, "bloom")) {
+            return { output: "bloom_check: write failed — note not stored" }
           }
           return {
-            output: `bloom note appended (bloom log now ${countLines(BLOOM_FILE)} rows).\nsubstrate: ${row.substrate}\ndivergence: ${row.divergence}\nanchors resolved: ${row.resolved}`,
+            output: `bloom note stored as own file (bloom log now ${countEntries(BLOOM_DIR)} files).\nsubstrate: ${row.substrate}\ndivergence: ${row.divergence}\nanchors resolved: ${row.resolved}`,
           }
         },
       }),

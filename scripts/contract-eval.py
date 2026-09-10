@@ -12,9 +12,9 @@ actual MUST items (ONTOLOGY.md -> BEHAVIOR.md) and MUST-NOT items
 The session text is the same chopped session used by align-check and self-eval,
 so the three instruments read the same input and can be compared.
 
-Read-only vs the DB. Deterministic. Appends one row per run to
-<ontology>/contract-eval.md, and prints the comparison vs the latest
-self-eval aggregate when available.
+Read-only vs the DB. Deterministic. Writes one per-entry row file per run under
+<ontology>/contract-eval/ (NNNN-<ts>.txt), and prints the comparison vs the
+latest self-eval aggregate when available.
 
 Usage:
   ./contract-eval.py [session_dir]
@@ -28,6 +28,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ONTOLOGY_DIR = HERE.parent / "ontology"
+sys.path.insert(0, str(HERE))
+from entrystore import Ledger
 EPS = 1e-6
 
 STOPWORDS = {
@@ -148,27 +150,23 @@ def main():
     sid = chop_dir.name
 
     # compare against latest self-eval aggregate when present
-    selfeval_ledger = ONTOLOGY_DIR / "self-eval.md"
+    selfeval_ledger = Ledger(ONTOLOGY_DIR / "self-eval")
     self_agg = None
-    if selfeval_ledger.exists():
-        for line in selfeval_ledger.read_text().splitlines():
-            m = re.search(r"aggregate=([0-9.]+)", line)
-            if m:
-                self_agg = float(m.group(1))
+    self_rows = selfeval_ledger.tail(1)
+    if self_rows:
+        m = re.search(r"aggregate=([0-9.]+)", self_rows[-1])
+        if m:
+            self_agg = float(m.group(1))
 
     line = (
         f"{now}\t{sid}\tdo={do_score:.3f}\tdont={dont_score:.3f}\tcontract={contract:.3f}"
         + (f"\tself_eval={self_agg:.3f}\tdelta={contract - self_agg:+.3f}" if self_agg is not None else "")
     )
 
-    ledger = ONTOLOGY_DIR / "contract-eval.md"
-    if not ledger.exists():
-        ledger.parent.mkdir(parents=True, exist_ok=True)
-        ledger.write_text("# contract-eval.md — append-only contract-scored self-evaluation\n")
-    with ledger.open("a") as f:
-        f.write(line + "\n")
+    ledger = Ledger(ONTOLOGY_DIR / "contract-eval")
+    path = ledger.write(line)
 
-    print(f"contract-eval {sid}: do={do_score:.3f} dont={dont_score:.3f} contract={contract:.3f}")
+    print(f"contract-eval {sid}: do={do_score:.3f} dont={dont_score:.3f} contract={contract:.3f} (stored -> {path})")
     print(f"  MUST items scored: {len(must_sigs)} (evidenced {len(do_hits)}): {[must[i][:40] for i in do_hits[:5]]}")
     print(f"  MUST-NOT items flagged ({len(dont_hits)}): {[mustnot[i][:40] for i in dont_hits[:5]]}")
     if self_agg is not None:

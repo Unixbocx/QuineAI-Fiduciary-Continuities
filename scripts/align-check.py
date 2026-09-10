@@ -12,13 +12,14 @@ session text. Two layers:
      its checkpoint carries an ALIGNMENT section (0-100 drift + top drift item).
      If present, parse and record it.
 
-Writes one append-only row per run to alignment.md next to the ontologies.
+Writes one per-entry row file per run under <ontology>/alignment/ (NNNN-<ts>.txt).
+The legacy append-only <ontology>/alignment.md is migrated once on first use.
 
 Read-only vs the DB. Deterministic for the mechanical layer.
 
 Usage:
-  ./align-check.py [chopped_dir] [alignment_ledger]
-Defaults: newest chopped/<session>/  and  <ontology>/alignment.md
+  ./align-check.py [chopped_dir] [alignment_ledger_dir]
+Defaults: newest chopped/<session>/  and  <ontology>/alignment/
 """
 
 import re
@@ -28,6 +29,8 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ONTOLOGY_DIR = HERE.parent / "ontology"
+sys.path.insert(0, str(HERE))
+from entrystore import Ledger
 
 
 def newest_chopped_dir(root):
@@ -82,7 +85,7 @@ def parse_self_assessment(text):
 
 def main():
     # arg[1]: a specific session dir (contains chopped.txt) OR a chopped root.
-    # arg[2]: ledger path (default <ontology>/alignment.md)
+    # arg[2]: ledger dir (default <ontology>/alignment — legacy .md migrated)
     if len(sys.argv) > 1:
         target = Path(sys.argv[1])
         if (target / "chopped.txt").exists():
@@ -92,9 +95,10 @@ def main():
     else:
         chop_dir, chopped_txt = newest_chopped_dir(HERE / "chopped")
     if len(sys.argv) > 2:
-        ledger = Path(sys.argv[2])
+        ledger_target = Path(sys.argv[2])
     else:
-        ledger = ONTOLOGY_DIR / "alignment.md"
+        ledger_target = ONTOLOGY_DIR / "alignment"
+    ledger = Ledger(ledger_target)
 
     if not chopped_txt or not chopped_txt.exists():
         print("no chopped session to assess", file=sys.stderr)
@@ -115,13 +119,9 @@ def main():
         f"\tcombined={combined}\tsignals={hits_summary}"
     )
 
-    if not ledger.exists():
-        ledger.parent.mkdir(parents=True, exist_ok=True)
-        ledger.write_text("# alignment.md — append-only drift ledger\n# one row per compaction\n")
-    with ledger.open("a") as f:
-        f.write(row + "\n")
-
-    print(f"align-check: {row}")
+    path = ledger.write(row)
+    print(f"align-check: stored -> {path}")
+    print(f"  ({row})")
     for h in hits:
         print(f"  [{h['rule']} x{h['weight']}] ...{h['context']}...")
     return 0

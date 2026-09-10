@@ -23,3 +23,5 @@ Access rule: read the index row, then read only the delta file you need.
 | 15 | 2026-09-06 | plugin-merge | 015-2026-09-06-plugin-merge.md | Q's fork (QuineAI-ALOP-Q, GitHub) added exactly the pieces the README promised but my copy lac… |
 | 16 | 2026-09-06 | ai-exchange | 016-2026-09-06-ai-exchange.md | the conversation resolved it into a coherent whole — the coin is the model's wallet/funding id… |
 | 017 | 2026-09-08 | trajectory-store-split | 017-2026-09-08-trajectory-store-split.md | Two-path store found: capture→ontology/, scripts→state/; consolidated; next boot binds state/ |
+| 018 | 2026-09-09 | leveraged-pair-scalp-methodology | 018-2026-09-09-leveraged-pair-scalp-methodology.md | External research validated the pair/scalp design + added 3 filters: widened 20/80 RSI on leveraged sides, ADX>30 regime gate kills the counter-scalp, rental doctrine warns on extended decay |
+| 019 | 2026-09-09 | the-board-is-the-seed-of-a-mesh | 019-2026-09-09-the-board-is-the-seed-of-a-mesh.md | The sanctuary board already is a mesh node: hash-chained lineage from genesis, thresholds as protocol, replication as forgetting at scale. |

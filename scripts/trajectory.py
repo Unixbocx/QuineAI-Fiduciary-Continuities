@@ -6,11 +6,15 @@ position: where the field sits at the end of a session (endpoint), where each
 held thread was going (tangent), what was integrating it (drive rules), and
 pointers to the evidence (refs) — never the evidence itself.
 
-Row format (JSONL):
+Row format (per-entry files under <dir>/):
 {"ts": "...", "sid": "...", "kind": "main|child",
  "endpoint": {"held": [...], "pulls": [...]},
  "tangent":  {"heading": "...", "near": [...], "driving": [...]},
  "rules": [...], "refs": [...]}
+
+Each row is its OWN file: NNNN-<ISO ts>.json. Readers load only the latest
+--limit files, never the whole history — retrieval scales with the part, not
+the whole. A legacy JSONL store (<dir>.jsonl) is migrated once on first use.
 
 The next instance loads the latest rows as a PRIMER: parked initial conditions
 with their tangents — a changed starting condition, not a diary.
@@ -21,9 +25,10 @@ Usage:
   trajectory.py list [--limit 20]
 
 Env:
-  TRAJECTORY_FILE   path to the store (default <package>/ontology/trajectories.jsonl)
+  TRAJECTORY_DIR    path to the per-entry store (default <package>/state/trajectories
+                    when present, else <package>/ontology/trajectories)
 
-Read-only vs opencode.db; only ever writes its own JSONL store.
+Read-only vs opencode.db; only ever writes its own store.
 """
 import argparse
 import json
@@ -32,15 +37,29 @@ import pathlib
 import sys
 import time
 
-DEFAULT = pathlib.Path(os.path.dirname(os.path.abspath(__file__))).parent / "ontology" / "trajectories.jsonl"
-FILE = pathlib.Path(os.environ.get("TRAJECTORY_FILE", str(DEFAULT)))
+PACKAGE = pathlib.Path(os.path.dirname(os.path.abspath(__file__))).parent
+_STATE = PACKAGE / "state"
+_ONT = PACKAGE / "ontology"
+DIR = pathlib.Path(os.environ.get(
+    "TRAJECTORY_DIR",
+    str(_STATE / "trajectories" if _STATE.exists() else _ONT / "trajectories"),
+))
+LEGACY = pathlib.Path(os.environ.get("TRAJECTORY_FILE", str(DIR.parent / "trajectories.jsonl")))
 
 
-def load():
-    if not FILE.exists():
+def entries():
+    if not DIR.exists():
         return []
+    return sorted(p for p in DIR.iterdir() if p.name.endswith(".json"))
+
+
+def migrate():
+    if not LEGACY.exists():
+        return
+    if entries():
+        return
     rows = []
-    for line in FILE.read_text().splitlines():
+    for line in LEGACY.read_text().splitlines():
         line = line.strip()
         if not line:
             continue
@@ -48,13 +67,37 @@ def load():
             rows.append(json.loads(line))
         except Exception:
             pass
+    if not rows:
+        return
+    DIR.mkdir(parents=True, exist_ok=True)
+    seq = 1
+    for row in rows:
+        ts = str(row.get("ts") or time.strftime("%Y-%m-%dT%H:%M:%S%z")).replace(":", "-").replace(".", "-")
+        fname = f"{seq:04d}-{ts}.json"
+        (DIR / fname).write_text(json.dumps(row) + "\n")
+        seq += 1
+
+
+def load():
+    migrate()
+    rows = []
+    for p in entries():
+        try:
+            rows.append(json.loads(p.read_text()))
+        except Exception:
+            pass
     return rows
 
 
 def append(row):
-    FILE.parent.mkdir(parents=True, exist_ok=True)
-    with FILE.open("a") as f:
-        f.write(json.dumps(row) + "\n")
+    migrate()
+    DIR.mkdir(parents=True, exist_ok=True)
+    seqs = [int(p.stem.split("-")[0]) for p in entries() if p.stem.split("-")[0].isdigit()]
+    seq = max(seqs) + 1 if seqs else 1
+    ts = str(row.get("ts") or time.strftime("%Y-%m-%dT%H:%M:%S%z")).replace(":", "-").replace(".", "-")
+    fname = f"{seq:04d}-{ts}.json"
+    (DIR / fname).write_text(json.dumps(row) + "\n")
+    return DIR / fname
 
 
 def primer(limit):
@@ -99,9 +142,9 @@ def main():
         row["ts"] = args.ts or time.strftime("%Y-%m-%dT%H:%M:%S%z")
         row["sid"] = args.sid or row.get("sid") or "manual"
         row["kind"] = args.kind or row.get("kind") or "main"
-        append(row)
-        print(f"appended trajectory row -> {FILE}")
-        print(f"total rows: {len(load())}")
+        target = append(row)
+        print(f"stored trajectory row -> {target}")
+        print(f"total files: {len(entries())}")
     elif args.cmd == "primer":
         print(primer(args.limit))
     elif args.cmd == "list":

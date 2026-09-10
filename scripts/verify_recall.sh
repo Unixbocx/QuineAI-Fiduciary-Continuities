@@ -25,9 +25,11 @@ echo "--- WHY (meta-goal) ---"
 
 echo
 echo "--- CURRENT (held positions by recency) ---"
-TJ="$STATE_DIR/trajectories.jsonl"; [ -f "$TJ" ] || { echo "FAIL: trajectories"; exit 1; }
-echo "  rows: $(wc -l < "$TJ")"
-tail -n1 "$TJ" | python3 -c "import sys,json; r=json.load(sys.stdin); print('  newest:', r.get('heading','?')[:80])" 2>/dev/null || echo "  newest: (json parse failed — plain tail below)" 
+TJ_DIR="$STATE_DIR/trajectories"; [ -d "$TJ_DIR" ] || { echo "FAIL: trajectories dir"; exit 1; }
+TJ_FILES=$(find "$TJ_DIR" -maxdepth 1 -name '*.json' | sort)
+[ -n "$TJ_FILES" ] || { echo "FAIL: no trajectory files"; exit 1; }
+echo "  files: $(find "$TJ_DIR" -maxdepth 1 -name '*.json' | wc -l)"
+echo "$TJ_FILES" | tail -n1 | xargs -I{} sh -c 'python3 -c "import sys,json; r=json.load(open(sys.argv[1])); print(\"  newest:\", r.get(\"heading\",\"?\")[:80])" "{}"' 2>/dev/null || echo "  newest: (json parse failed)" 
 
 echo
 echo "--- WHAT (comprehension store: index + deltas, OS-visible) ---"
@@ -45,7 +47,7 @@ done
 
 echo
 echo "--- OS-enforcement samples (the certainty layer) ---"
-for f in "$ONT_ROOT/META-LOG.md" "$STATE_DIR/trajectories.jsonl" "$ONT_ROOT/SELF.md"; do
+for f in "$ONT_ROOT/META-LOG/" "$STATE_DIR/trajectories/" "$ONT_ROOT/SELF.md"; do
   stat -c "  %n  perms=%a  owner=%U:%G  mtime=%y" "$f" 2>/dev/null | sed 's/\.[0-9]* -0400/ -0400/'
 done
 echo

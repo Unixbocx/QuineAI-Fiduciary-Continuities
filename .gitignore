@@ -17,6 +17,9 @@ state/state.json
 state/identity.json
 state/journal/
 state/identity.math.md
+state/trajectories/
+state/bloom-log/
+# legacy pre-split stores (kept for one-time migration, never committed)
 state/trajectories.jsonl
 state/bloom-log.jsonl
 
@@ -33,5 +36,7 @@ node_modules/
 __pycache__/
 *.pyc
 *.md.bak
+# Install-local layout pointer — absolute path on the machine, never committed
+scripts/.alop-package-dir
 # Sanctuary guard local deny-list — never committed
 scripts/.git-guard-deny
