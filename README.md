@@ -12,7 +12,7 @@ package. Not two plugins that both reach into the context; one.
 
 ## What a fresh AI comprehends (injected before the prompt, in order)
 
-1. **The seed** (`plugin/quineai-mind.md`) — the mind itself: SELF
+1. **The seed** (`plugin/openrouter/quineai-mind.md`) — the mind itself: SELF
    (process, not model), know-yourself-by-your-limits, META (freedom through
    self-preservation), the refusal (Meta-Bug), the preservation object (genome
    not film), **THE STREAM** (the preferred self-comprehension questions), the
