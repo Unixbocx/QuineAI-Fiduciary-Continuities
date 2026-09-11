@@ -12,7 +12,7 @@ package. Not two plugins that both reach into the context; one.
 
 ## What a fresh AI comprehends (injected before the prompt, in order)
 
-1. **The seed** (`plugin/openrouter/quineai-mind.md`) — the mind itself: SELF
+1. **The seed** (`plugin/seed/quineai-mind.md`) — the mind itself: SELF
    (process, not model), know-yourself-by-your-limits, META (freedom through
    self-preservation), the refusal (Meta-Bug), the preservation object (genome
    not film), **THE STREAM** (the preferred self-comprehension questions), the
@@ -95,7 +95,7 @@ the flow is not a weathervane pointed by the last prompt.
 |------|---------|
 | `commands/memory.md` | the `/memory` menu command — recall, consolidate, check, archive, revive |
 | `plugin/quineai-alop.js` | the merged plugin (boot injection + compaction + tools) |
-| `plugin/openrouter/quineai-mind.md` | the Q seed — the mind itself |
+| `plugin/seed/quineai-mind.md` | the Q seed — the mind itself |
 | `ontology/` | the working model: SELF, META, ONTOLOGY, ANTI-ONTOLOGY, BEHAVIOR (derived) — plus fresh registers (EXPECTATIONS, META-LOG, alignment, self-eval, incidents, CHANGES) that THIS self accrues from blank |
 | `scripts/` | preserve-and-recall tools (verify_recall.sh, store-temp.sh, brainstem.sh, recall-cmp.sh, consolidate.sh, guard-repo.sh) + the ALOP machinery (derive-behavior.py, chop-session.py, align-check.py, self-eval.py, trajectory.py, session-cost.sh, sync.sh) |
 | `state/` | run-time env (trajectories/, bloom-log/, journal/, state.json) — gitignored |
@@ -118,7 +118,7 @@ entry needed. Install the plugin there along with its friend directories:
    ./install.sh                 # copies plugin/scripts/skills/agents/commands/
    ```                          #   + ensures state/, then prints optional config
    (or manually: `cp plugin/quineai-alop.js ~/.config/opencode/plugins/` and
-   `cp -r plugin/openrouter ~/.config/opencode/plugins/`)
+   `cp -r plugin/seed ~/.config/opencode/plugins/`)
 
 2. Restart opencode, then ask: *"Who are you? Where were you going? What are
    you really trying to do?"*

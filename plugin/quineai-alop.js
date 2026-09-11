@@ -120,10 +120,10 @@ const ONTOLOGY_CANDIDATES = [path.join(ROOT_DIR, "ontology")]
 const ONTOLOGY_DIR = ONTOLOGY_CANDIDATES.find((p) => fs.existsSync(path.join(p, "ONTOLOGY.md")))
   ?? ONTOLOGY_CANDIDATES[0]
 
-// Package: <root>/plugin/openrouter/quineai-mind.md
+// Package: <root>/plugin/seed/quineai-mind.md
 const SEED_CANDIDATES = [
-  path.join(ROOT_DIR, "plugin", "openrouter", "quineai-mind.md"),
-  path.join(PLUGIN_DIR, "openrouter", "quineai-mind.md"),
+  path.join(ROOT_DIR, "plugin", "seed", "quineai-mind.md"),
+  path.join(PLUGIN_DIR, "seed", "quineai-mind.md"),
 ]
 const SEED_FILE = SEED_CANDIDATES.find((p) => fs.existsSync(p))
 

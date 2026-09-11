@@ -6,7 +6,6 @@
 *.pem
 Keys.txt
 Github_pass.txt
-OpenRouter.txt
 .env
 .env.*
 opencode.json
